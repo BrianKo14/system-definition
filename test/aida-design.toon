@@ -1,14 +1,14 @@
 docentes:
   name: docentes
   record: docente
-  fields[7]{name,type,nullable,isName,label,description}:
-    docente,text,false,false,docente,""
-    apellido,text,false,false,apellido,""
-    nombres,text,false,false,nombres,""
-    cargo,text,true,false,cargo,""
-    email,email,true,false,email,""
-    email_alternativo,email,true,false,email alternativo,""
-    jefe,text,true,false,jefe,jefe de cátedra (otro docente)
+  fields[7]{name,type,nullable,isName,label,description,defaultValue}:
+    docente,text,false,false,docente,"",null
+    apellido,text,false,false,apellido,"",null
+    nombres,text,false,false,nombres,"",null
+    cargo,text,true,false,cargo,"",null
+    email,email,true,false,email,"",null
+    email_alternativo,email,true,false,email alternativo,"",null
+    jefe,text,true,false,jefe,jefe de cátedra (otro docente),null
   pk[1]: docente
   fks:
     jefe:
@@ -17,33 +17,42 @@ docentes:
         jefe: docente
   uks:
   validators[1]: emailRazonable
+  schema: null
+  table: null
+  access:
 materias:
   name: materias
   record: materia
-  fields[2]{name,type,nullable,isName,label,description}:
-    materia,text,false,false,materia,""
-    denominacion,text,false,true,denominación,"si corresponde a más de una carrera, aclarar en el nombre"
+  fields[2]{name,type,nullable,isName,label,description,defaultValue}:
+    materia,text,false,false,materia,"",null
+    denominacion,text,false,true,denominación,"si corresponde a más de una carrera, aclarar en el nombre",null
   pk[1]: materia
   fks:
   uks:
     denominacion[1]: denominacion
   validators: []
+  schema: null
+  table: null
+  access:
 periodos:
   name: periodos
   record: periodo
-  fields[1]{name,type,nullable,isName,label,description}:
-    periodo,text,false,false,periodo,"bimestre, cuatrimestre, etc..."
+  fields[1]{name,type,nullable,isName,label,description,defaultValue}:
+    periodo,text,false,false,periodo,"bimestre, cuatrimestre, etc...",null
   pk[1]: periodo
   fks:
   uks:
   validators: []
+  schema: null
+  table: null
+  access:
 cursos:
   name: cursos
   record: curso
-  fields[3]{name,type,nullable,isName,label,description}:
-    periodo,text,false,false,periodo,"bimestre, cuatrimestre, etc..."
-    materia,text,false,false,materia,""
-    docente,text,true,false,docente,""
+  fields[3]{name,type,nullable,isName,label,description,defaultValue}:
+    periodo,text,false,false,periodo,"bimestre, cuatrimestre, etc...",null
+    materia,text,false,false,materia,"",null
+    docente,text,true,false,docente,"",null
   pk[2]: periodo,materia
   fks:
     periodos:
@@ -60,15 +69,49 @@ cursos:
         docente: docente
   uks:
   validators: []
+  schema: null
+  table: null
+  access:
 clases:
   name: clases
   record: clase
-  fields[5]{name,type,nullable,isName,label,description}:
-    periodo,text,false,false,periodo,"bimestre, cuatrimestre, etc..."
-    materia,text,false,false,materia,""
-    orden,integer,false,false,orden,""
-    fecha,fecha,true,false,fecha,""
-    tema,text,true,false,tema,""
+  fields[5]:
+    - name: periodo
+      type: text
+      nullable: false
+      isName: false
+      label: periodo
+      description: "bimestre, cuatrimestre, etc..."
+      defaultValue: null
+    - name: materia
+      type: text
+      nullable: false
+      isName: false
+      label: materia
+      description: ""
+      defaultValue: null
+    - name: orden
+      type: integer
+      nullable: false
+      isName: false
+      label: orden
+      description: ""
+      defaultValue: null
+    - name: fecha
+      type: fecha
+      nullable: true
+      isName: false
+      label: fecha
+      description: ""
+      defaultValue:
+        fn: today
+    - name: tema
+      type: text
+      nullable: true
+      isName: false
+      label: tema
+      description: ""
+      defaultValue: null
   pk[3]: periodo,materia,orden
   fks:
     cursos:
@@ -78,29 +121,78 @@ clases:
         materia: materia
   uks:
   validators[1]: ordenPositivo
+  schema: null
+  table: null
+  access:
 alumnos:
   name: alumnos
   record: alumno
-  fields[4]{name,type,nullable,isName,label,description}:
-    alumno,text,false,false,alumno,""
-    apellido,text,false,false,apellido,""
-    nombres,text,false,false,nombres,""
-    email,email,true,false,email,""
+  fields[4]{name,type,nullable,isName,label,description,defaultValue}:
+    alumno,text,false,false,alumno,"",null
+    apellido,text,false,false,apellido,"",null
+    nombres,text,false,false,nombres,"",null
+    email,email,true,false,email,"",null
   pk[1]: alumno
   fks:
   uks:
   validators[1]: emailRazonable
-preguntas:
+  schema: null
+  table: null
+  access:
+evaluacion.preguntas:
   name: preguntas
   record: pregunta
-  fields[7]{name,type,nullable,isName,label,description}:
-    periodo,text,false,false,periodo,"bimestre, cuatrimestre, etc..."
-    materia,text,false,false,materia,""
-    orden,integer,false,false,orden,""
-    pregunta,integer,false,false,pregunta,""
-    formulacion,text,false,false,formulación,texto principal de la pregunta
-    aclaraciones,text,true,false,aclaraciones,"texto que no necesita repetirse cuando se quiera referir a una pregunta por su formulación, pero que es necesario para aclarar el contexto o posibles ambigüedades de la pregunta"
-    tipo_respuesta,text,false,false,tipo,""
+  fields[7]:
+    - name: periodo
+      type: text
+      nullable: false
+      isName: false
+      label: periodo
+      description: "bimestre, cuatrimestre, etc..."
+      defaultValue: null
+    - name: materia
+      type: text
+      nullable: false
+      isName: false
+      label: materia
+      description: ""
+      defaultValue: null
+    - name: orden
+      type: integer
+      nullable: false
+      isName: false
+      label: orden
+      description: ""
+      defaultValue: null
+    - name: pregunta
+      type: integer
+      nullable: false
+      isName: false
+      label: pregunta
+      description: ""
+      defaultValue: null
+    - name: formulacion
+      type: text
+      nullable: false
+      isName: false
+      label: formulación
+      description: texto principal de la pregunta
+      defaultValue: null
+    - name: aclaraciones
+      type: text
+      nullable: true
+      isName: false
+      label: aclaraciones
+      description: "texto que no necesita repetirse cuando se quiera referir a una pregunta por su formulación, pero que es necesario para aclarar el contexto o posibles ambigüedades de la pregunta"
+      defaultValue: null
+    - name: tipo_respuesta
+      type: text
+      nullable: false
+      isName: false
+      label: tipo
+      description: ""
+      defaultValue:
+        value: texto
   pk[4]: periodo,materia,orden,pregunta
   fks:
     clases:
@@ -111,20 +203,23 @@ preguntas:
         orden: orden
   uks:
   validators: []
-opciones:
+  schema: evaluacion
+  table: null
+  access:
+evaluacion.opciones:
   name: opciones
   record: opcion
-  fields[6]{name,type,nullable,isName,label,description}:
-    periodo,text,false,false,periodo,"bimestre, cuatrimestre, etc..."
-    materia,text,false,false,materia,""
-    orden,integer,false,false,orden,""
-    pregunta,integer,false,false,pregunta,""
-    opcion,text,false,false,opcion,""
-    detalle,text,true,false,detalle,""
+  fields[6]{name,type,nullable,isName,label,description,defaultValue}:
+    periodo,text,false,false,periodo,"bimestre, cuatrimestre, etc...",null
+    materia,text,false,false,materia,"",null
+    orden,integer,false,false,orden,"",null
+    pregunta,integer,false,false,pregunta,"",null
+    opcion,text,false,false,opcion,"",null
+    detalle,text,true,false,detalle,"",null
   pk[5]: periodo,materia,orden,pregunta,opcion
   fks:
     preguntas:
-      entity: preguntas
+      entity: evaluacion.preguntas
       fields:
         periodo: periodo
         materia: materia
@@ -132,13 +227,16 @@ opciones:
         pregunta: pregunta
   uks:
   validators: []
+  schema: evaluacion
+  table: null
+  access:
 inscripciones:
   name: inscripciones
   record: inscripcion
-  fields[3]{name,type,nullable,isName,label,description}:
-    periodo,text,false,false,periodo,"bimestre, cuatrimestre, etc..."
-    materia,text,false,false,materia,""
-    alumno,text,false,false,alumno,""
+  fields[3]{name,type,nullable,isName,label,description,defaultValue}:
+    periodo,text,false,false,periodo,"bimestre, cuatrimestre, etc...",null
+    materia,text,false,false,materia,"",null
+    alumno,text,false,false,alumno,"",null
   pk[3]: periodo,materia,alumno
   fks:
     cursos:
@@ -152,14 +250,17 @@ inscripciones:
         alumno: alumno
   uks:
   validators: []
+  schema: null
+  table: null
+  access:
 presencias:
   name: presencias
   record: presencia
-  fields[4]{name,type,nullable,isName,label,description}:
-    periodo,text,false,false,periodo,"bimestre, cuatrimestre, etc..."
-    materia,text,false,false,materia,""
-    alumno,text,false,false,alumno,""
-    orden,integer,false,false,orden,""
+  fields[4]{name,type,nullable,isName,label,description,defaultValue}:
+    periodo,text,false,false,periodo,"bimestre, cuatrimestre, etc...",null
+    materia,text,false,false,materia,"",null
+    alumno,text,false,false,alumno,"",null
+    orden,integer,false,false,orden,"",null
   pk[4]: periodo,materia,alumno,orden
   fks:
     inscripciones:
@@ -176,15 +277,18 @@ presencias:
         orden: orden
   uks:
   validators: []
+  schema: null
+  table: null
+  access:
 mesas:
   name: mesas
   record: mesa
-  fields[5]{name,type,nullable,isName,label,description}:
-    periodo,text,false,false,periodo,"bimestre, cuatrimestre, etc..."
-    materia,text,false,false,materia,""
-    fecha,fecha,false,false,fecha,""
-    presidente,text,true,false,presidente,""
-    vocal,text,true,false,vocal,""
+  fields[5]{name,type,nullable,isName,label,description,defaultValue}:
+    periodo,text,false,false,periodo,"bimestre, cuatrimestre, etc...",null
+    materia,text,false,false,materia,"",null
+    fecha,fecha,false,false,fecha,"",null
+    presidente,text,true,false,presidente,"",null
+    vocal,text,true,false,vocal,"",null
   pk[3]: periodo,materia,fecha
   fks:
     cursos:
@@ -202,3 +306,6 @@ mesas:
         vocal: docente
   uks:
   validators: []
+  schema: null
+  table: null
+  access:

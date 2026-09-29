@@ -2,6 +2,35 @@
    without entities or database: it also describes a payload or the parameters of an endpoint. */
 
 import { AnyFieldDef, CoreFieldDef, SystemTypeContext, TypeCollection } from "./ssot-types";
+import { JsonValue } from "./type-utils";
+
+/* what a field falls back to when an insert omits it: a constant, or the NAME of a generator,
+   resolved against implementations registered apart. Boxed so "no default" and "defaults to
+   null" stay different statements; the two shapes never mix (`never` on the other key). */
+export type DefaultConstant<TValue> = {value: TValue, fn?: never}
+export type DefaultGenerator = {value?: never, fn: string}
+export type DefaultDef<TValue> = DefaultConstant<TValue> | DefaultGenerator
+
+/* the default a field may declare, checked against its type and nullability. Not part of the
+   core — a system intersects this into its own field def. A union on `type` and `nullable`:
+   the constant must be a JsonValue of the field's type (an object type like a Temporal date
+   can only name a generator), and null only where nullable; a generator isn't type-checked. */
+export type DefaultValueFieldDef<TTypes extends TypeCollection> = {
+    [K in keyof TTypes]:
+        | {type: K, nullable?: true , defaultValue?: DefaultDef<DefaultConstantOf<TTypes[K]['tsType']> | null>}
+        | {type: K, nullable : false, defaultValue?: DefaultDef<DefaultConstantOf<TTypes[K]['tsType']>>}
+}[keyof TTypes]
+
+/* an intersection, not an Extract: both agree for a concrete type, but over an unknown
+   collection (tsType: unknown) Extract gives never while the intersection gives JsonValue —
+   what a def of any system at all may carry. */
+type DefaultConstantOf<TsType> = TsType & JsonValue
+
+/* null means no default; {value: null} is a declared one. The insert path needs this
+   distinction to know which not-nullable fields it must still demand. */
+export function completeDefault(fieldDef: {defaultValue?: DefaultDef<JsonValue>}): DefaultDef<JsonValue> | null {
+    return fieldDef.defaultValue ?? null;
+}
 
 /* the field def and the field info are the two ends of the system's own completer: what it
    takes and what it gives back. The framework only adds the core it needs to read itself. */

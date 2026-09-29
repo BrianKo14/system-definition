@@ -9,3 +9,6 @@ export type Optional<T> = {
 } & {
   [K in keyof T as IsNullable<T[K]> extends true ? K : never]?: T[K];
 };
+
+/* what survives a trip through JSON: no functions, no RegExps, no Dates */
+export type JsonValue = string | number | boolean | null | readonly JsonValue[] | {readonly [K in string]?: JsonValue}

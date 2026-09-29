@@ -132,7 +132,7 @@ describe("aida behaviour", function(){
             integer: {tsType: null},
             boolean: {tsType: null},
             fecha  : {tsType: null},
-            email  : {tsType: null},
+            email  : {tsType: null, base: 'text', attrs: {kind: 'bound', maxLength: 254}},
         });
         assert.equal(typeof fechaBehaviour.deserialize, 'function');
     })

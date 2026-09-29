@@ -8,7 +8,7 @@
    archivo. */
 
 import { defineRecord } from "../../src/common/ssot-record";
-import { EntityDef, EntityInstanceType, defineEntities, defineEntity, extractPk, mergePk, withRecords } from "../../src/common/ssot-entity";
+import { EntityDef, EntityInstanceType, defineEntities, defineEntity, extractPk, inSchema, mergePk, withRecords } from "../../src/common/ssot-entity";
 import { aidaConReglas, aidaMetaContext, aidaTypes } from "./aida-context";
 
 /* THE RECORDS THAT DEPEND ON NOTHING: they only need the types */
@@ -17,7 +17,7 @@ export const cargo = defineRecord(aidaTypes, {
     cargo            : {type: 'text' },
     denominacion     : {type: 'text' , label:'denominación'},
     orden            : {type: 'integer'},
-    puede_dirigir    : {type: 'boolean'},
+    puede_dirigir    : {type: 'boolean', defaultValue: {value: false}},
 })
 
 export const materia = defineRecord(aidaTypes, {
@@ -105,7 +105,7 @@ export const cursos = defineEntity(aida2, {
 export const clase = defineRecord(aidaTypes, {
     ...extractPk(cursos),
     orden            : {type: 'integer'},
-    fecha            : {type: 'fecha'  },
+    fecha            : {type: 'fecha'  , defaultValue: {fn: 'today'}},
     tema             : {type: 'text'   },
 })
 
@@ -126,7 +126,7 @@ export const pregunta = defineRecord(aidaTypes, {
     pregunta         : {type: 'integer'},
     formulacion      : {type: 'text'   , nullable:false, label: 'formulación', description: 'texto principal de la pregunta'},
     aclaraciones     : {type: 'text'   , description: 'texto que no necesita repetirse cuando se quiera referir a una pregunta por su formulación, pero que es necesario para aclarar el contexto o posibles ambigüedades de la pregunta'},
-    tipo_respuesta   : {type: 'text'   , nullable:false, label: 'tipo'}
+    tipo_respuesta   : {type: 'text'   , nullable:false, label: 'tipo', defaultValue: {value: 'texto'}}
 })
 
 export const inscripcion = defineRecord(aidaTypes, {
@@ -145,6 +145,8 @@ export const mesa = defineRecord(aidaTypes, {
 
 export const aida4 = withRecords(aida3, {pregunta, inscripcion, mesa})
 
+/* the questionnaire lives in a schema of its own (see `evaluacion` below): the fk to clases
+   crosses it */
 export const preguntas = defineEntity(aida4, {
     name: 'preguntas',
     record: 'pregunta',
@@ -187,8 +189,13 @@ export const opciones = defineEntity(aida5, {
     name: 'opciones',
     record: 'opcion',
     pk: [...preguntas.pk, 'opcion'],
-    fks: {preguntas: {entity: 'preguntas', fields: preguntas.pk}},
+    // the target lives in evaluacion, so its identity is qualified
+    fks: {preguntas: {entity: 'evaluacion.preguntas', fields: preguntas.pk}},
 })
+
+/* the schema is said once, here: inSchema keys each entity `evaluacion.name` and puts the schema
+   into its def, so the key and the schema cannot disagree */
+export const evaluacion = inSchema('evaluacion', {preguntas, opciones})
 
 /* LEVEL 6: combined pk — inscripciones and clases share periodo and materia, no repetition;
    periodo and materia belong to both fks */
@@ -226,6 +233,7 @@ export const aidaFieldInfo = defineRecord(aidaMetaContext, {
     nullable   : {type: 'boolean' , nullable: false},
     label      : {type: 'text'    , nullable: false},
     description: {type: 'text'    , nullable: false},
+    defaultValue: {type: 'defaultDef'},
 })
 
 /* a record def is not only the fields of an entity: this one describes the parameters of a
@@ -258,8 +266,7 @@ export const entityDefs = defineEntities({
     cursos,
     clases,
     alumnos,
-    preguntas,
-    opciones,
+    ...evaluacion,
     inscripciones,
     presencias,
     mesas,

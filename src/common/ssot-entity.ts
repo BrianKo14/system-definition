@@ -5,6 +5,8 @@ import { AnyFieldDef, SystemTypeContext } from "./ssot-types";
 import { AnyRecordDef, RecordDef, RecordInfo, RecordInfoOf, RecordInstanceType,
     NotNullableFieldsOf, completeRecord, notNullableFields } from "./ssot-record";
 import { ValidatorCollection, ValidatorNamesFor } from "./validate";
+import { AccessDef, AccessInfoOf } from "./access";
+import { ExpandType } from "./type-utils";
 
 /* the entity references its record BY NAME, like an fk references its target entity and for
    the same reason, so the context of the entity layer is the one of the types plus the records
@@ -62,6 +64,9 @@ export type AnyEntityDef = {
     fks?: Readonly<Record<string, FkDef>>
     uks?: Readonly<Record<string, readonly string[]>>
     validators?: readonly string[]
+    schema?: string
+    table?: string
+    access?: AccessDef
 }
 
 /* fks reference the target entity BY NAME (a string, not the object): that keeps the defs
@@ -84,7 +89,17 @@ export type EntityDef<TContext extends SystemEntityContext> = {
     uks?: Readonly<Record<string, readonly string[]>>
     /* by name, like the record and the fks: a def carries no functions */
     validators?: readonly string[]
+    /* the namespace the table lives in. Absent, it is the default one. */
+    schema?: string
+    /* the physical name of the table, for when it differs from the entity's (a legacy database).
+       Absent, it is derived from the identity of the entity. */
+    table?: string
+    /* who may do what here: role -> capabilities. Absent, nobody may do anything. */
+    access?: AccessDef
 }
+
+/** We reserve dotted names for `schema.name` patterns. */
+export type NotQualified<TName> = TName extends `${string}.${string}` ? never : unknown
 
 export function defineEntity<
     TContext extends SystemEntityContext,
@@ -96,10 +111,15 @@ export function defineEntity<
     /* only the rules whose shape this entity's row has: naming one that asks for a field the
        record has not got is not in the union and does not compile */
     const TValidators extends readonly ValidatorNamesFor<EntityRowOf<TContext, TRecord, TPk>, ValidatorsOf<TContext>>[] = [],
+    const TSchema extends string | undefined = undefined,
+    const TTable extends string | undefined = undefined,
+    const TAccess extends AccessDef = {},
 >(
     context: TContext,
-    def: {name: TName, record: TRecord, pk: TPk, fks?: TFks, uks?: TUks, validators?: TValidators},
-): {name: TName, record: TRecord, fields: TContext['records'][TRecord], pk: TPk, fks: TFks, uks: TUks, validators: TValidators} {
+    def: {name: TName, record: TRecord, pk: TPk, fks?: TFks, uks?: TUks, validators?: TValidators,
+        schema?: TSchema, table?: TTable & NotQualified<TTable>, access?: TAccess},
+): {name: TName, record: TRecord, fields: TContext['records'][TRecord], pk: TPk, fks: TFks, uks: TUks, validators: TValidators,
+    schema: TSchema, table: TTable, access: TAccess} {
     return {
         name: def.name,
         record: def.record,
@@ -110,7 +130,26 @@ export function defineEntity<
         fks: def.fks ?? {} as TFks,
         uks: def.uks ?? {} as TUks,
         validators: def.validators ?? [] as unknown as TValidators,
+        schema: def.schema as TSchema,
+        table: def.table as TTable,
+        access: def.access ?? {} as TAccess,
     };
+}
+
+// `inSchema` and `InSchemaOf` take care of qualifying each entity with its schema.
+// E.g. `inSchema('public', {user: {...}})` becomes `{ 'public.user': {...} }`
+
+export type InSchemaOf<TSchema extends string, TEntities extends Readonly<Record<string, AnyEntityDef>>> = {
+    [E in keyof TEntities & string as `${TSchema}.${E}`]: ExpandType<Omit<TEntities[E], 'schema'> & {schema: TSchema}>
+}
+
+export function inSchema<
+    const TSchema extends string,
+    const TEntities extends Readonly<Record<string, AnyEntityDef>>,
+>(schema: TSchema, entityDefs: TEntities): InSchemaOf<TSchema, TEntities> {
+    return Object.fromEntries(Object.entries(entityDefs).map(([name, entityDef]) =>
+        [`${schema}.${name}`, {...entityDef, schema}]
+    )) as InSchemaOf<TSchema, TEntities>;
 }
 
 export type PkFieldsOf<TEntityDef extends AnyEntityDef> =
@@ -166,7 +205,15 @@ export type EntityInfo<TContext extends SystemEntityContext> = {
     fks: Readonly<Record<string, FkInfo>>
     uks: Readonly<Record<string, readonly string[]>>
     validators: readonly string[]
+    schema: string | null
+    table: string | null
+    access: AccessDef
 }
+
+/** The type of a completed name. Nullifying undefined, to be derived. */
+export type NameInfoOf<TName extends string | undefined> = TName extends string ? TName : null
+/** The type of a completed schema. Nullifying undefined, to be derived. */
+export type SchemaInfoOf<TSchema extends string | undefined> = NameInfoOf<TSchema>
 
 /* the same reasoning as the field: the info is derived, so it says its own name. The entity
    does not receive it from anywhere else — its name is the key it has in the map of the system —
@@ -181,6 +228,9 @@ export type EntityInfoOf<TContext extends SystemEntityContext, TEntityDef extend
         : {}
     uks: TEntityDef['uks'] extends Readonly<Record<string, readonly string[]>> ? TEntityDef['uks'] : {}
     validators: TEntityDef['validators'] extends readonly string[] ? TEntityDef['validators'] : readonly []
+    schema: NameInfoOf<TEntityDef['schema']>
+    table: NameInfoOf<TEntityDef['table']>
+    access: AccessInfoOf<TEntityDef['access']>
 }
 
 function completeFk(fkDef: FkDef): FkInfo {
@@ -204,6 +254,9 @@ export function completeEntity<TContext extends SystemEntityContext, const TEnti
         fks: Object.fromEntries(Object.entries(entityDef.fks ?? {}).map(([name, fkDef]) => [name, completeFk(fkDef)])),
         uks: entityDef.uks ?? {},
         validators: entityDef.validators ?? [],
+        schema: entityDef.schema ?? null,
+        table: entityDef.table ?? null,
+        access: entityDef.access ?? {},
     } as EntityInfoOf<TContext, TEntityDef>;
 }
 
@@ -232,11 +285,14 @@ type ValidatedFks<TFks extends Readonly<Record<string, FkDef>>, TEntities extend
         : never
 }
 
+/** The check to ensure a local name is derived from a fully-qualified name.
+ * E.g. "ventas.usuarios" -> "usuarios" */
+type LocalNameOf<E extends string, TSchema> =
+    TSchema extends string ? (E extends `${TSchema}.${infer TLocal}` ? TLocal : never) : E
+
 export type ValidatedEntities<TEntities extends Readonly<Record<string, AnyEntityDef>>> = {
-    /* the name the entity carries has to be the key it gets here: that is what turns the
-       repetition into a double check instead of two sources that can drift apart */
     [E in keyof TEntities]: {
-        name: E & string
+        name: LocalNameOf<E & string, TEntities[E]['schema']>
         fks?: ValidatedFks<NonNullable<TEntities[E]['fks']>, TEntities>
     }
 }

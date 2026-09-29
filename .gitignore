@@ -146,3 +146,5 @@ coverage-*
 
 local-*
 *-local.*
+
+.DS_Store

@@ -109,12 +109,33 @@ tiempo de ejecución. El framework aporta unos pocos tipos comunes (`text`, `int
 `boolean`) como punto de partida; cada sistema puede agregar los suyos (en el ejemplo,
 `fecha`, `email`).
 
+Un tipo puede además declarar sus **atributos** (`attrs`), que son datos serializables — un
+patrón viaja como string, no como RegExp —: `bound` (largo máximo), `range` (mínimo y máximo),
+`decimal` (precisión y escala) y `element` (el tipo de los elementos, nombrado como una fk
+nombra su entidad). Un sistema puede sumar los suyos, con la única condición de no usar la
+palabra `kind`, que es como el framework distingue los que entiende. `defineType` chequea que la
+forma corresponda al tipo (un `range` no acota un texto) y `defineTypes` lo que solo la
+colección puede saber: que cada `elementType` nombre un tipo que existe y sea el de los
+elementos.
+
+Con `base` un tipo nombra — nunca embebe — el tipo del que toma el comportamiento; si no la
+declara, es su propia base. En el ejemplo, `email` es `text` acotado a 254.
+
 ### Campos: `FieldDef` / `FieldInfo`
 
 Un campo se describe con `FieldDef`: el `type` (una key de la `TypeCollection`) y,
 opcionalmente, `label`, `nullable` y `description`. `completeRecord` produce el `FieldInfo`
 correspondiente, con esos tres campos siempre presentes (defaults: `label` derivado del
 nombre, `nullable: true`, `description: ''`), preservando el literal de `type`.
+
+Un sistema puede darle además a sus campos un `defaultValue`: aquello a lo que cae el campo
+cuando un alta no lo trae. El framework no lo exige: el sistema lo agrega a su propio field def
+con `DefaultValueFieldDef` (que pone la forma y el chequeo) y lo completa con `completeDefault`.
+Es una constante (`{value: false}`) o el **nombre** de un generador (`{fn: 'today'}`) que se
+resuelve contra implementaciones registradas aparte, nunca las dos. La constante se chequea en
+compilación contra el tipo del campo y su nulleabilidad, y un tipo que no sobrevive a JSON (una
+`fecha`) solo puede nombrar un generador. En la `Info`, `null` significa "no tiene default" y
+`{value: null}` es un default declarado.
 
 ### Records: `RecordDef` / `RecordInfo`
 
@@ -134,6 +155,20 @@ valores que tomaría cada campo en tiempo de ejecución).
 forman la clave primaria (admite pk compuesta). Se construye con `defineEntity`, que
 chequea en tiempo de compilación que cada elemento de `pk` sea una key de `fields`, y
 preserva los literales (`pk` queda tipado como tupla exacta, no como `string[]`).
+
+Una entidad puede además declarar su `schema` (el namespace de su tabla) y su `table` (el nombre
+físico, para cuando difiere del de la entidad, por ejemplo en una tabla heredada). Los dos son
+opcionales y en la `EntityInfo` quedan explícitos: `null` significa "derivalo". `table` no lleva
+punto — el namespace se nombra una sola vez, en `schema` — y `NotQualified` rechaza uno que sí
+en compilación. Para que dos entidades de schemas distintos puedan llamarse igual,
+`inSchema('evaluacion', {preguntas, opciones})` las pasa a las keys `evaluacion.preguntas` y
+`evaluacion.opciones` y les pone el schema; `defineEntities` exige que la key sea el `name` si la
+entidad no tiene schema, y `schema.name` si lo tiene.
+
+Y puede declarar su `access`: qué puede hacer cada rol con ella. Una `AccessDef` es un mapa de
+rol a capacidades (`'read' | 'create' | 'update' | 'delete' | 'lock'`, la lista está en
+`CAPABILITIES`) y va con la entidad para no repetir su nombre en una política aparte. Si falta
+no significa "derivalo" sino "no otorga nada": la `Info` completa a `{}`, nunca a `null`.
 
 ### Reutilización de claves: `extractPk` / `mergePk`
 
@@ -156,6 +191,17 @@ Each system defines its own type collection (`TypeCollection`), associating a ty
 framework provides a few common types (`text`, `integer`, `boolean`) as a starting point;
 each system can add its own (in the example, `fecha` — date — and `email`).
 
+A type may also declare its **attributes** (`attrs`), which are serializable data — a pattern
+travels as a string, not as a RegExp —: `bound` (a maximum length), `range` (a minimum and a
+maximum), `decimal` (precision and scale) and `element` (the elements' type, named the way an fk
+names its entity). A system may add its own, on the single condition that it not use the word
+`kind`, which is how the framework tells the ones it understands. `defineType` checks that the
+shape suits the type (a `range` does not bound a text) and `defineTypes` what only the collection
+can know: that every `elementType` names a type that exists and is the type of the elements.
+
+With `base` a type names — never embeds — the type it takes its behaviour from; declaring none, it
+is its own base. In the example, `email` is `text` bounded at 254.
+
 ### Fields: `FieldDef` / `FieldInfo`
 
 A field is described with `FieldDef`: its `type` (a key of the `TypeCollection`) and,
@@ -163,6 +209,15 @@ optionally, `label`, `nullable` and `description`. `completeRecord` produces the
 corresponding `FieldInfo`, with those three fields always present (defaults: `label`
 derived from the field name, `nullable: true`, `description: ''`), preserving the `type`
 literal.
+
+A system may also give its fields a `defaultValue`: what the field falls back to when an insert
+does not supply it. The framework does not require it: the system adds it to its own field def
+with `DefaultValueFieldDef` (which provides the shape and the check) and completes it with
+`completeDefault`. It is either a constant (`{value: false}`) or the **name** of a generator
+(`{fn: 'today'}`) resolved against implementations registered apart, never both. The constant is
+checked at compile time against the field's type and nullability, and a type whose values do not
+survive JSON (a `fecha`) can only name a generator. In the `Info`, `null` means "no default at
+all" and `{value: null}` is a declared one.
 
 ### Records: `RecordDef` / `RecordInfo`
 
@@ -182,6 +237,20 @@ values each field would hold at runtime).
 make up the primary key (composite keys are supported). It's built with `defineEntity`,
 which checks at compile time that every element of `pk` is a key of `fields`, and preserves
 the literals (`pk` ends up typed as an exact tuple, not as `string[]`).
+
+An entity may also declare its `schema` (the namespace of its table) and its `table` (the
+physical name, for when it differs from the entity's, as in a legacy table). Both are optional
+and in the `EntityInfo` they are explicit: `null` means "derive it". `table` carries no dot — the
+namespace is named once, in `schema` — and `NotQualified` refuses one that does at compile time.
+So that two entities of different schemas can share a name,
+`inSchema('evaluacion', {preguntas, opciones})` moves them to the keys `evaluacion.preguntas` and
+`evaluacion.opciones` and puts the schema into each def; `defineEntities` requires the key to be
+the `name` when the entity has no schema, and `schema.name` when it has one.
+
+And it may declare its `access`: what each role may do to it. An `AccessDef` maps a role to its
+capabilities (`'read' | 'create' | 'update' | 'delete' | 'lock'`, the list is in `CAPABILITIES`)
+and goes with the entity so its name is never repeated in a separate policy. When absent it does
+not mean "derive it" but "grant nothing": the `Info` completes to `{}`, never to `null`.
 
 ### Reusing keys: `extractPk` / `mergePk`
 
@@ -206,7 +275,8 @@ heredan claves de otras:
 * `cursos` hereda las pk de `periodos`, `materias` y `docentes` (el docente responsable).
 * `clases` extiende la pk de `cursos` agregando `orden`.
 * `preguntas` extiende la pk de `clases` agregando `pregunta`, y `opciones` extiende la de
-  `preguntas` agregando `opcion` (encadenamiento de herencia de pk en varios niveles).
+  `preguntas` agregando `opcion` (encadenamiento de herencia de pk en varios niveles). Las dos
+  viven en el schema `evaluacion`.
 * `inscripciones` hereda las pk de `cursos` y `alumnos`.
 * `presencias` combina, con `mergePk`, las pk de `inscripciones` y `clases`, que comparten
   `periodo` y `materia`: esos campos no se repiten.
@@ -230,7 +300,7 @@ independent entities (`docentes` — instructors, `materias` — subjects, `peri
 * `clases` (classes) extends the `cursos` pk by adding `orden` (sequence number).
 * `preguntas` (questions) extends the `clases` pk by adding `pregunta`, and `opciones`
   (options) extends the `preguntas` pk by adding `opcion` (pk inheritance chained across
-  several levels).
+  several levels). Both live in the `evaluacion` schema.
 * `inscripciones` (enrollments) inherits the pks of `cursos` and `alumnos`.
 * `presencias` (attendance) combines, with `mergePk`, the pks of `inscripciones` and
   `clases`, which share `periodo` and `materia`: those fields aren't repeated.

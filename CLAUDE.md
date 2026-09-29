@@ -49,8 +49,9 @@ en el contexto, que nunca fue una descripción.
 
 * `src/common`: el framework descriptor. No conoce ningún sistema concreto. Está cortado en capas,
   cada una conoce a la anterior y no al revés: `ssot-types.ts` (los tipos de dominio y el contexto),
-  `ssot-record.ts` (campos y registros), `ssot-entity.ts` (pk, uks, fks) y `type-utils.ts` (helpers
-  de TypeScript, ajenos al SSOT). El `index.ts` reexporta todo.
+  `ssot-record.ts` (campos y registros), `ssot-entity.ts` (pk, uks, fks, schema, table, access) y
+  `type-utils.ts` (helpers de TypeScript, ajenos al SSOT). `access.ts` (`Capability`, `AccessDef`) es
+  independiente del resto y lo usa `ssot-entity.ts`. El `index.ts` reexporta todo.
   (Más adelante podrían aparecer `src/backend` y `src/frontend`, o aplanarse todo a `src` si no hacen falta.)
 * `examples/common`: un sistema de ejemplo (sistema de alumnos) descripto con el framework.
 * `test/`: tests con mocha que importan las definiciones de los ejemplos (los ejemplos implican tests).
@@ -207,7 +208,7 @@ Nombres ya elegidos:
 * `RecordInfoOf<TRecordDef>`: la Info precisa que corresponde a una Def concreta (conserva
   las claves y los literales de `type`); es lo que devuelve `completeRecord`. El sufijo `Of`
   marca "tipo derivado de una definición concreta".
-* `TypeDef` es `{tsType}`, **sin parámetro de tipo**: el tipo preciso de cada uno sale del literal
+* `TypeDef` es `{tsType, base?, attrs?}`, **sin parámetro de tipo**: el tipo preciso de cada uno sale del literal
   que preserva el `satisfies`, no del parámetro (que nunca se instanciaba con otra cosa que `any`).
   `tsType` es fantasma: `boxType` devuelve `null` en runtime, así que lleva un tipo de compilación
   adentro de un valor. El comportamiento de los tipos no es serializable, así que vive en el
@@ -235,3 +236,57 @@ Nombres ya elegidos:
   otras, y completar de entrada impide eso), y todas las puntas saben completar cuando les hace falta.
   Un `RecordDef` vale por sí mismo, no solo como campos de una entidad: sirve para el payload o los
   parámetros de un endpoint (`alumnoSearchParams` en el ejemplo).
+* **Atributos de los tipos**: `attrs?` y `base?` en `TypeDef`, los dos datos. El vocabulario trae un
+  conjunto cerrado (`BoundAttrs`, `RangeAttrs`, `DecimalAttrs`, `ElementAttrs`) discriminado por
+  `kind`, y `CustomTypeAttrs` (cualquier record serializable) con `kind?: never` — sin ese `never`,
+  el tipado estructural dejaría pasar un `{maxLength}` propio como `bound`. `JsonValue` (en
+  `type-utils.ts`) deja afuera funciones, RegExps y Date. `base` **nombra** de dónde sale el
+  comportamiento (ausente, el tipo es su propia base): no compite con `behaviours`, que es el
+  registro del sistema; `base` es el dato que un implementador (ssot-framework) usa para elegir el
+  suyo. `defineType` fija los literales (sin él, un literal pelado ensancharía `kind` a `string`) y
+  chequea que la forma corresponda al `tsType` (`AttrsFor`). Lo que solo la colección entera puede
+  chequear (que un `elementType` sea un tipo de la colección y el de los elementos, `ValidatedTypes`)
+  lo exige `defineTypes` en su `types`: es la puerta donde la colección está completa.
+* **`defaultValue` es del sistema, no del núcleo**, como `isName` o `label`. Lo que pone el vocabulario
+  es la forma y el chequeo: `DefaultDef` son dos formas que nunca se mezclan (`fn?: never` /
+  `value?: never`, el mismo truco que `kind?: never`) — una constante `{value}`, que viaja como dato,
+  o el **nombre** de un generador `{fn}`, resuelto contra implementaciones registradas aparte.
+  `DefaultValueFieldDef<TTypes>` es lo que el sistema intersecta en su field def: una **unión** sobre
+  los tipos y sobre `nullable`, porque qué constante vale depende de los dos (el `tsType` del campo,
+  y `null` solo si es nulleable). La constante tiene que ser además `JsonValue`
+  (`tsType & JsonValue`): un tipo cuyos valores son objetos (`fecha`, un `Temporal.PlainDate`)
+  solo puede nombrar un generador. Intersección y no `Extract`: para un tipo concreto dicen lo mismo,
+  pero sobre una colección ancha (`tsType: unknown`) `Extract` da `never` y ninguna def concreta con
+  una constante sería asignable al `EntityDef` ancho que usa un consumidor (ssot-framework). El generador no se chequea contra el tipo: solo su implementación
+  sabe qué produce. `completeDefault` completa la ausencia a `null`, y ahí `null` es "no tiene
+  default" mientras `{value: null}` es uno declarado — la distinción que necesita el alta.
+  Verificado que la unión no rompe la inferencia de `defineRecord` (la trampa del literal único
+  opcional no aparece: `nullable?: true` es un miembro de la unión, no una propiedad suelta). Sin
+  `const`, la constante se ensancha a su tipo (`{value: boolean}`), igual que un `label`.
+  El meta-record lo describe con un tipo `defaultDef` cuyo texto es el JSON de la caja.
+* `schema` en `EntityDef`: el namespace Postgres donde vive la tabla; `completeEntity` completa
+  la ausencia a `null`. `table`: el nombre físico, para cuando difiere del de la entidad (una base
+  heredada); `NotQualified` rechaza en compilación un nombre con punto (el namespace se nombra en
+  `schema`, una sola vez). Los dos se completan con `NameInfoOf`, alias con el parámetro desnudo
+  para que el condicional distribuya: un nombre no conocido estáticamente (`string | undefined`)
+  completa a `string | null` sin colapsar a `null`, que mentiría sobre lo que el generador lee en
+  runtime. `null` significa "derivalo" (el schema por defecto, la tabla con el nombre de la entidad).
+* `access` en `EntityDef` (`access.ts`, independiente del resto): la política de autorización, rol →
+  capacidades (`Capability` es cerrado e incluye `lock`). La **fuente es la lista** `CAPABILITIES`
+  (un `as const`) y el tipo se deriva de ella con `typeof CAPABILITIES[number]`: así cada capacidad
+  se escribe una sola vez. Antes iba al revés — la unión escrita a mano y la lista sacada de las
+  claves de un `Record<Capability, true>`, cuyo literal obligaba al compilador a chequear que
+  estuvieran todas — pero eso pedía escribir las cinco dos veces para recuperar en runtime algo que
+  la lista ya dice. Va en la entidad para no repetir su nombre en
+  un mapa aparte. Se completa a `{}` (como `uks`/`fks`), no a `null` (como `schema`/`table`): la
+  ausencia significa "no otorga nada", igual que una política vacía — deny-all por construcción.
+* **La identidad de una entidad es su nombre calificado por su schema.** `inSchema(schema, entidades)`
+  re-keya cada una a `schema.nombre` e inyecta el `schema` (pisando uno inline): así dos entidades de
+  schemas distintos pueden llamarse igual sin chocar como keys de un literal. El `name` de la Def
+  queda **local**: es lo que la tabla toma por default. `ValidatedEntities` exige que la key sea el
+  `name` si la entidad no tiene schema, y `schema.name` si lo tiene — la key que escribe `inSchema`.
+  Una key sin calificar al lado de un `schema`, o calificada con otro schema, no deja nombre que calce:
+  la key diría una cosa y el schema otra. (Se probó la versión permisiva, que aceptaba la key sin
+  calificar; se descartó por eso mismo: dos formas de escribir la misma entidad.) Por eso en aida
+  `preguntas` y `opciones` entran por `inSchema('evaluacion', …)` y la fk a preguntas nombra
+  `evaluacion.preguntas`.
