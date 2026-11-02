@@ -20,6 +20,8 @@ docentes:
   schema: null
   table: null
   access:
+    admin[5]: read,create,update,delete,lock
+    docente[1]: read
 materias:
   name: materias
   record: materia
@@ -34,6 +36,9 @@ materias:
   schema: null
   table: null
   access:
+    admin[5]: read,create,update,delete,lock
+    docente[1]: read
+    alumno[1]: read
 periodos:
   name: periodos
   record: periodo
@@ -46,6 +51,9 @@ periodos:
   schema: null
   table: null
   access:
+    admin[5]: read,create,update,delete,lock
+    docente[1]: read
+    alumno[1]: read
 cursos:
   name: cursos
   record: curso
@@ -72,6 +80,9 @@ cursos:
   schema: null
   table: null
   access:
+    admin[5]: read,create,update,delete,lock
+    docente[1]: read
+    alumno[1]: read
 clases:
   name: clases
   record: clase
@@ -124,6 +135,9 @@ clases:
   schema: null
   table: null
   access:
+    admin[5]: read,create,update,delete,lock
+    docente[5]: read,create,update,delete,lock
+    alumno[1]: read
 alumnos:
   name: alumnos
   record: alumno
@@ -139,6 +153,8 @@ alumnos:
   schema: null
   table: null
   access:
+    admin[5]: read,create,update,delete,lock
+    docente[1]: read
 evaluacion.preguntas:
   name: preguntas
   record: pregunta
@@ -206,6 +222,9 @@ evaluacion.preguntas:
   schema: evaluacion
   table: null
   access:
+    admin[5]: read,create,update,delete,lock
+    docente[5]: read,create,update,delete,lock
+    alumno[1]: read
 evaluacion.opciones:
   name: opciones
   record: opcion
@@ -230,6 +249,9 @@ evaluacion.opciones:
   schema: evaluacion
   table: null
   access:
+    admin[5]: read,create,update,delete,lock
+    docente[5]: read,create,update,delete,lock
+    alumno[1]: read
 inscripciones:
   name: inscripciones
   record: inscripcion
@@ -253,6 +275,8 @@ inscripciones:
   schema: null
   table: null
   access:
+    admin[5]: read,create,update,delete,lock
+    docente[1]: read
 presencias:
   name: presencias
   record: presencia
@@ -280,6 +304,8 @@ presencias:
   schema: null
   table: null
   access:
+    admin[5]: read,create,update,delete,lock
+    docente[5]: read,create,update,delete,lock
 mesas:
   name: mesas
   record: mesa
@@ -309,3 +335,5 @@ mesas:
   schema: null
   table: null
   access:
+    admin[5]: read,create,update,delete,lock
+    docente[1]: read

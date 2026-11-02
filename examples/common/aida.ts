@@ -9,6 +9,7 @@
 
 import { defineRecord } from "../../src/common/ssot-record";
 import { EntityDef, EntityInstanceType, defineEntities, defineEntity, extractPk, inSchema, mergePk, withRecords } from "../../src/common/ssot-entity";
+import { CAPABILITIES } from "../../src/common/access";
 import { aidaConReglas, aidaMetaContext, aidaTypes } from "./aida-context";
 
 /* THE RECORDS THAT DEPEND ON NOTHING: they only need the types */
@@ -52,6 +53,11 @@ export const alumno = defineRecord(aidaTypes, {
     email            : {type: 'email'},
 })
 
+const catalogo   = {admin: CAPABILITIES, docente: ['read'], alumno: ['read']} as const
+const personas   = {admin: CAPABILITIES, docente: ['read']} as const
+const dictado    = {admin: CAPABILITIES, docente: CAPABILITIES, alumno: ['read']} as const
+const asistencia = {admin: CAPABILITIES, docente: CAPABILITIES} as const
+
 /* LEVEL 1 of the data model: the entities whose records stand on their own.
    Plural names wrap the singular record defs, and the entity names its record. */
 
@@ -67,6 +73,7 @@ export const docentes = defineEntity(aida1, {
     // and the source field (jefe) is mapped to the target field (docente)
     fks: {jefe: {entity: 'docentes', fields: {jefe: 'docente'}}},
     validators: ['emailRazonable'],
+    access: personas,
 })
 
 export const materias = defineEntity(aida1, {
@@ -74,10 +81,11 @@ export const materias = defineEntity(aida1, {
     record: 'materia',
     pk: ['materia'],
     uks: {denominacion: ['denominacion']},
+    access: catalogo,
 })
 
-export const periodos = defineEntity(aida1, {name: 'periodos', record: 'periodo', pk: ['periodo']})
-export const alumnos  = defineEntity(aida1, {name: 'alumnos', record: 'alumno' , pk: ['alumno' ], validators: ['emailRazonable']})
+export const periodos = defineEntity(aida1, {name: 'periodos', record: 'periodo', pk: ['periodo'], access: catalogo})
+export const alumnos  = defineEntity(aida1, {name: 'alumnos', record: 'alumno' , pk: ['alumno' ], validators: ['emailRazonable'], access: personas})
 
 /* LEVEL 2: curso inherits the pks of level 1, so it cannot exist before them */
 
@@ -98,6 +106,7 @@ export const cursos = defineEntity(aida2, {
         materias   : {entity: 'materias', fields: materias.pk},
         responsable: {entity: 'docentes', fields: docentes.pk},
     },
+    access: catalogo,
 })
 
 /* LEVEL 3 */
@@ -117,6 +126,7 @@ export const clases = defineEntity(aida3, {
     pk: [...cursos.pk, 'orden'],
     fks: {cursos: {entity: 'cursos', fields: cursos.pk}},
     validators: ['ordenPositivo'],
+    access: dictado,
 })
 
 /* LEVEL 4: three records at the same depth, one single stage */
@@ -152,6 +162,7 @@ export const preguntas = defineEntity(aida4, {
     record: 'pregunta',
     pk: [...clases.pk, 'pregunta'],
     fks: {clases: {entity: 'clases', fields: clases.pk}},
+    access: dictado,
 })
 
 export const inscripciones = defineEntity(aida4, {
@@ -162,6 +173,7 @@ export const inscripciones = defineEntity(aida4, {
         cursos : {entity: 'cursos' , fields: cursos.pk},
         alumnos: {entity: 'alumnos', fields: alumnos.pk},
     },
+    access: personas,
 })
 
 export const mesas = defineEntity(aida4, {
@@ -173,6 +185,7 @@ export const mesas = defineEntity(aida4, {
         presidente: {entity: 'docentes', fields: {presidente: 'docente'}},
         vocal     : {entity: 'docentes', fields: {vocal: 'docente'}},
     },
+    access: personas,
 })
 
 /* LEVEL 5 */
@@ -191,6 +204,7 @@ export const opciones = defineEntity(aida5, {
     pk: [...preguntas.pk, 'opcion'],
     // the target lives in evaluacion, so its identity is qualified
     fks: {preguntas: {entity: 'evaluacion.preguntas', fields: preguntas.pk}},
+    access: dictado,
 })
 
 /* the schema is said once, here: inSchema keys each entity `evaluacion.name` and puts the schema
@@ -215,6 +229,7 @@ export const presencias = defineEntity(aida6, {
         inscripciones: {entity: 'inscripciones', fields: inscripciones.pk},
         clases       : {entity: 'clases'       , fields: clases.pk},
     },
+    access: asistencia,
 })
 
 /* the context with everything: the last stage is the whole system */

@@ -528,16 +528,16 @@ describe("aida access", function(){
     })
     it("completes an absent policy to the empty policy, which grants nothing", function(){
         var restringidosInfo = completeEntity(aida, docentesRestringidos);
-        var materiasInfo = completeEntity(aida, materias);
+        var cargosInfo = completeEntity(aida, cargos);
         var declared: readonly ['read'] = restringidosInfo.access.alumno;
         var declaredBack: typeof restringidosInfo.access.alumno = declared;
-        var absent: {} = materiasInfo.access;
-        var absentBack: typeof materiasInfo.access = absent;
+        var absent: {} = cargosInfo.access;
+        var absentBack: typeof cargosInfo.access = absent;
         /* an absent policy and an empty one are the same statement — grant nothing — unlike
            schema and table, where absent means "derive it". So there is no null here. */
-        var admitsNull: IsAssignable<null, typeof materiasInfo.access> = false;
+        var admitsNull: IsAssignable<null, typeof cargosInfo.access> = false;
         assert.deepStrictEqual(restringidosInfo.access, {admin: CAPABILITIES, alumno: ['read']});
-        assert.deepStrictEqual(materiasInfo.access, {});
+        assert.deepStrictEqual(cargosInfo.access, {});
         assert.deepStrictEqual(declaredBack, ['read']);
         assert.deepStrictEqual(absentBack, {});
         assert.equal(admitsNull, false);
