@@ -1,6 +1,7 @@
 export * from "./ssot-types";
 export * from "./type-behaviour";
 export * from "./ssot-record";
+export * from "./ssot-routine";
 export * from "./ssot-entity";
 export * from "./access";
 export * from "./type-utils";

@@ -170,6 +170,30 @@ rol a capacidades (`'read' | 'create' | 'update' | 'delete' | 'lock'`, la lista 
 `CAPABILITIES`) y va con la entidad para no repetir su nombre en una política aparte. Si falta
 no significa "derivalo" sino "no otorga nada": la `Info` completa a `{}`, nunca a `null`.
 
+Y puede declarar sus `triggers`: qué rutina corre cuando cambian sus filas
+(`{timing: 'before' | 'after', events: ['insert', 'update', 'delete'], level?: 'row' | 'statement', routine}`).
+El trigger nombra la rutina **por nombre**, como una fk nombra su entidad, y `defineEntity` solo
+acepta una rutina de clase `trigger` del contexto. Sin `level`, dispara una vez por fila.
+
+### Rutinas: `RoutineDef` / `RoutineInfo`
+
+Una rutina es una función, un procedimiento o lo que corre un trigger, y se **describe**: el
+cuerpo es texto en su lenguaje (`'sql' | 'plpgsql'`), así la descripción sigue sin llevar
+funciones. Las tres clases se distinguen por `kind`, y cada una rechaza lo que no puede decir:
+
+* `function`: `params` (opcional, nombre → `{type}`) y `returns`, tipados con los tipos del sistema.
+* `procedure`: `params`, sin `returns`.
+* `trigger`: ni params ni resultado (lee la fila y devuelve `trigger` por serlo), y solo `plpgsql`.
+
+`defineRoutine(context, def)` chequea la def contra los tipos y devuelve la misma def. Las rutinas
+entran al contexto en una etapa propia, `withRoutines(context, routines)`, **antes** que las
+entidades, porque son las entidades las que las nombran. Como una entidad, una rutina dice su
+`name` y puede tener `schema`; `defineRoutines` exige que la key sea su identidad, y
+`inSchema` la califica igual que a una entidad. `completeRoutine` deja todo explícito: `schema`
+`null`, `params` `{}` y `returns` `null` cuando no están. Las palabras de cada conjunto cerrado
+están también como listas (`ROUTINE_KINDS`, `ROUTINE_LANGUAGES`, `TRIGGER_TIMINGS`,
+`TRIGGER_EVENTS`, `TRIGGER_LEVELS`), para que una implementación las chequee en runtime.
+
 ### Reutilización de claves: `extractPk` / `mergePk`
 
 * `extractPk(entityDef)` devuelve los campos de la pk de una entidad como un `RecordDef` con
@@ -251,6 +275,31 @@ And it may declare its `access`: what each role may do to it. An `AccessDef` map
 capabilities (`'read' | 'create' | 'update' | 'delete' | 'lock'`, the list is in `CAPABILITIES`)
 and goes with the entity so its name is never repeated in a separate policy. When absent it does
 not mean "derive it" but "grant nothing": the `Info` completes to `{}`, never to `null`.
+
+And it may declare its `triggers`: which routine runs when its rows change
+(`{timing: 'before' | 'after', events: ['insert', 'update', 'delete'], level?: 'row' | 'statement', routine}`).
+The trigger names its routine **by name**, the way an fk names its entity, and `defineEntity`
+only accepts a routine of kind `trigger` from the context. Without a `level`, it fires once per row.
+
+### Routines: `RoutineDef` / `RoutineInfo`
+
+A routine is a function, a procedure, or what a trigger runs, and it is **described**: the body is
+text in its own language (`'sql' | 'plpgsql'`), so the description still carries no functions.
+The three kinds are told apart by `kind`, and each refuses what it cannot say:
+
+* `function`: `params` (optional, name → `{type}`) and `returns`, typed with the system's types.
+* `procedure`: `params`, no `returns`.
+* `trigger`: neither params nor result (it reads the row and returns `trigger` by being one), and
+  only `plpgsql`.
+
+`defineRoutine(context, def)` checks the def against the types and returns the same def. Routines
+enter the context as a stage of their own, `withRoutines(context, routines)`, **before** the
+entities, because it is the entities that name them. Like an entity, a routine says its `name` and
+may have a `schema`; `defineRoutines` requires the key to be its identity, and `inSchema` qualifies
+it just like an entity. `completeRoutine` makes everything explicit: `schema` `null`, `params` `{}`
+and `returns` `null` when absent. The words of each closed set are also lists (`ROUTINE_KINDS`,
+`ROUTINE_LANGUAGES`, `TRIGGER_TIMINGS`, `TRIGGER_EVENTS`, `TRIGGER_LEVELS`), so an implementation
+can check them at runtime.
 
 ### Reusing keys: `extractPk` / `mergePk`
 

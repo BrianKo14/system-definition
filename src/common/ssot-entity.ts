@@ -1,11 +1,12 @@
 /* the entity: the container level, the unit that can be shown as a grid. It knows the record
    and adds what only makes sense over a stored collection: pk, uks and fks. */
 
-import { AnyFieldDef, SystemTypeContext } from "./ssot-types";
+import { AnyFieldDef, LocalNameOf, NameInfoOf, SystemTypeContext } from "./ssot-types";
 import { AnyRecordDef, RecordDef, RecordInfo, RecordInfoOf, RecordInstanceType,
     NotNullableFieldsOf, completeRecord, notNullableFields } from "./ssot-record";
 import { ValidatorCollection, ValidatorNamesFor } from "./validate";
 import { AccessDef, AccessInfoOf } from "./access";
+import { TriggerRoutineNamesOf } from "./ssot-routine";
 import { ExpandType } from "./type-utils";
 
 /* the entity references its record BY NAME, like an fk references its target entity and for
@@ -67,6 +68,7 @@ export type AnyEntityDef = {
     schema?: string
     table?: string
     access?: AccessDef
+    triggers?: Readonly<Record<string, TriggerDef>>
 }
 
 /* fks reference the target entity BY NAME (a string, not the object): that keeps the defs
@@ -75,6 +77,23 @@ export type AnyEntityDef = {
 export type FkDef = {
     entity: string
     fields: readonly string[] | Readonly<Record<string, string>>
+}
+
+
+/* --- Trigger events --- */
+
+export const TRIGGER_EVENTS = ['insert', 'update', 'delete'] as const
+export type TriggerEvent = typeof TRIGGER_EVENTS[number]
+export const TRIGGER_TIMINGS = ['before', 'after'] as const
+export type TriggerTiming = typeof TRIGGER_TIMINGS[number]
+export const TRIGGER_LEVELS = ['row', 'statement'] as const
+export type TriggerLevel = typeof TRIGGER_LEVELS[number]
+
+export type TriggerDef = {
+    timing: TriggerTiming
+    events: readonly TriggerEvent[]
+    level?: TriggerLevel
+    routine: string
 }
 
 export type EntityDef<TContext extends SystemEntityContext> = {
@@ -96,6 +115,8 @@ export type EntityDef<TContext extends SystemEntityContext> = {
     table?: string
     /* who may do what here: role -> capabilities. Absent, nobody may do anything. */
     access?: AccessDef
+    /* what runs when its rows change, by name: the routines are in the context */
+    triggers?: Readonly<Record<string, TriggerDef>>
 }
 
 /** We reserve dotted names for `schema.name` patterns. */
@@ -114,12 +135,14 @@ export function defineEntity<
     const TSchema extends string | undefined = undefined,
     const TTable extends string | undefined = undefined,
     const TAccess extends AccessDef = {},
+    /* only the trigger routines of the context: naming a function, or nothing at all, does not compile */
+    const TTriggers extends Readonly<Record<string, TriggerDef & {routine: TriggerRoutineNamesOf<TContext>}>> = {},
 >(
     context: TContext,
     def: {name: TName, record: TRecord, pk: TPk, fks?: TFks, uks?: TUks, validators?: TValidators,
-        schema?: TSchema, table?: TTable & NotQualified<TTable>, access?: TAccess},
+        schema?: TSchema, table?: TTable & NotQualified<TTable>, access?: TAccess, triggers?: TTriggers},
 ): {name: TName, record: TRecord, fields: TContext['records'][TRecord], pk: TPk, fks: TFks, uks: TUks, validators: TValidators,
-    schema: TSchema, table: TTable, access: TAccess} {
+    schema: TSchema, table: TTable, access: TAccess, triggers: TTriggers} {
     return {
         name: def.name,
         record: def.record,
@@ -133,19 +156,23 @@ export function defineEntity<
         schema: def.schema as TSchema,
         table: def.table as TTable,
         access: def.access ?? {} as TAccess,
+        triggers: def.triggers ?? {} as TTriggers,
     };
 }
 
 // `inSchema` and `InSchemaOf` take care of qualifying each entity with its schema.
 // E.g. `inSchema('public', {user: {...}})` becomes `{ 'public.user': {...} }`
 
-export type InSchemaOf<TSchema extends string, TEntities extends Readonly<Record<string, AnyEntityDef>>> = {
+/* anything that lives in a namespace: the entities, and the routines too */
+type InNamespace = {readonly schema?: string, readonly [key: string]: unknown}
+
+export type InSchemaOf<TSchema extends string, TEntities extends Readonly<Record<string, InNamespace>>> = {
     [E in keyof TEntities & string as `${TSchema}.${E}`]: ExpandType<Omit<TEntities[E], 'schema'> & {schema: TSchema}>
 }
 
 export function inSchema<
     const TSchema extends string,
-    const TEntities extends Readonly<Record<string, AnyEntityDef>>,
+    const TEntities extends Readonly<Record<string, InNamespace>>,
 >(schema: TSchema, entityDefs: TEntities): InSchemaOf<TSchema, TEntities> {
     return Object.fromEntries(Object.entries(entityDefs).map(([name, entityDef]) =>
         [`${schema}.${name}`, {...entityDef, schema}]
@@ -192,6 +219,20 @@ export type FkInfo = {
     fields: Readonly<Record<string, string>>
 }
 
+export type TriggerInfo = {
+    timing: TriggerTiming
+    events: readonly TriggerEvent[]
+    level: TriggerLevel
+    routine: string
+}
+
+export type TriggerInfoOf<TTrigger extends TriggerDef> = {
+    timing: TTrigger['timing']
+    events: TTrigger['events']
+    level: TTrigger extends {level: infer TLevel extends TriggerLevel} ? TLevel : 'row'
+    routine: TTrigger['routine']
+}
+
 export type FkInfoOf<TFk extends FkDef> = {
     entity: TFk['entity']
     fields: TFk['fields'] extends readonly (infer TNames extends string)[] ? {[K in TNames]: K} : TFk['fields']
@@ -208,10 +249,9 @@ export type EntityInfo<TContext extends SystemEntityContext> = {
     schema: string | null
     table: string | null
     access: AccessDef
+    triggers: Readonly<Record<string, TriggerInfo>>
 }
 
-/** The type of a completed name. Nullifying undefined, to be derived. */
-export type NameInfoOf<TName extends string | undefined> = TName extends string ? TName : null
 /** The type of a completed schema. Nullifying undefined, to be derived. */
 export type SchemaInfoOf<TSchema extends string | undefined> = NameInfoOf<TSchema>
 
@@ -231,6 +271,9 @@ export type EntityInfoOf<TContext extends SystemEntityContext, TEntityDef extend
     schema: NameInfoOf<TEntityDef['schema']>
     table: NameInfoOf<TEntityDef['table']>
     access: AccessInfoOf<TEntityDef['access']>
+    triggers: TEntityDef['triggers'] extends Readonly<Record<string, TriggerDef>>
+        ? {[T in keyof TEntityDef['triggers']]: TriggerInfoOf<TEntityDef['triggers'][T]>}
+        : {}
 }
 
 function completeFk(fkDef: FkDef): FkInfo {
@@ -239,6 +282,15 @@ function completeFk(fkDef: FkDef): FkInfo {
         fields: Array.isArray(fkDef.fields)
             ? Object.fromEntries(fkDef.fields.map(name => [name, name]))
             : fkDef.fields,
+    };
+}
+
+function completeTrigger(triggerDef: TriggerDef): TriggerInfo {
+    return {
+        timing: triggerDef.timing,
+        events: triggerDef.events,
+        level: triggerDef.level ?? 'row',
+        routine: triggerDef.routine,
     };
 }
 
@@ -257,6 +309,7 @@ export function completeEntity<TContext extends SystemEntityContext, const TEnti
         schema: entityDef.schema ?? null,
         table: entityDef.table ?? null,
         access: entityDef.access ?? {},
+        triggers: Object.fromEntries(Object.entries(entityDef.triggers ?? {}).map(([name, triggerDef]) => [name, completeTrigger(triggerDef)])),
     } as EntityInfoOf<TContext, TEntityDef>;
 }
 
@@ -284,11 +337,6 @@ type ValidatedFks<TFks extends Readonly<Record<string, FkDef>>, TEntities extend
             : never
         : never
 }
-
-/** The check to ensure a local name is derived from a fully-qualified name.
- * E.g. "ventas.usuarios" -> "usuarios" */
-type LocalNameOf<E extends string, TSchema> =
-    TSchema extends string ? (E extends `${TSchema}.${infer TLocal}` ? TLocal : never) : E
 
 export type ValidatedEntities<TEntities extends Readonly<Record<string, AnyEntityDef>>> = {
     [E in keyof TEntities]: {

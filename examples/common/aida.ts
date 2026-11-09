@@ -8,9 +8,58 @@
    archivo. */
 
 import { defineRecord } from "../../src/common/ssot-record";
+import { defineRoutine, defineRoutines, withRoutines } from "../../src/common/ssot-routine";
 import { EntityDef, EntityInstanceType, defineEntities, defineEntity, extractPk, inSchema, mergePk, withRecords } from "../../src/common/ssot-entity";
 import { CAPABILITIES } from "../../src/common/access";
 import { aidaConReglas, aidaMetaContext, aidaTypes } from "./aida-context";
+
+
+/* THE ROUTINES */
+
+export const email_en_minusculas = defineRoutine(aidaTypes, {
+    kind: 'trigger',
+    name: 'email_en_minusculas',
+    language: 'plpgsql',
+    body: `
+begin
+    new.email := lower(new.email);
+    return new;
+end
+`,
+})
+
+export const cantidad_inscriptos = defineRoutine(aidaTypes, {
+    kind: 'function',
+    name: 'cantidad_inscriptos',
+    params: {periodo: {type: 'text'}, materia: {type: 'text'}},
+    returns: 'integer',
+    language: 'sql',
+    body: `
+select count(*)::integer
+  from "public"."inscripciones" i
+ where i."periodo" = cantidad_inscriptos.periodo and i."materia" = cantidad_inscriptos.materia
+`,
+})
+
+export const inscribir = defineRoutine(aidaTypes, {
+    kind: 'procedure',
+    name: 'inscribir',
+    params: {periodo: {type: 'text'}, materia: {type: 'text'}, alumno: {type: 'text'}},
+    language: 'sql',
+    body: `
+insert into "public"."inscripciones" ("periodo", "materia", "alumno")
+     values (inscribir.periodo, inscribir.materia, inscribir.alumno)
+`,
+})
+
+export const routineDefs = defineRoutines({email_en_minusculas, cantidad_inscriptos, inscribir})
+
+export const aidaConRutinas = withRoutines(aidaConReglas, routineDefs)
+
+/* the trigger both entities with an email run: one routine, two triggers */
+const emailEnMinusculas = {
+    email_en_minusculas: {timing: 'before', events: ['insert', 'update'], routine: 'email_en_minusculas'},
+} as const
 
 /* THE RECORDS THAT DEPEND ON NOTHING: they only need the types */
 
@@ -61,7 +110,7 @@ const asistencia = {admin: CAPABILITIES, docente: CAPABILITIES} as const
 /* LEVEL 1 of the data model: the entities whose records stand on their own.
    Plural names wrap the singular record defs, and the entity names its record. */
 
-export const aida1 = withRecords(aidaConReglas, {cargo, materia, docente, asignacion, periodo, alumno})
+export const aida1 = withRecords(aidaConRutinas, {cargo, materia, docente, asignacion, periodo, alumno})
 
 export const cargos = defineEntity(aida1, {name: 'cargos', record: 'cargo', pk: ['cargo']})
 
@@ -74,6 +123,7 @@ export const docentes = defineEntity(aida1, {
     fks: {jefe: {entity: 'docentes', fields: {jefe: 'docente'}}},
     validators: ['emailRazonable'],
     access: personas,
+    triggers: emailEnMinusculas,
 })
 
 export const materias = defineEntity(aida1, {
@@ -85,7 +135,7 @@ export const materias = defineEntity(aida1, {
 })
 
 export const periodos = defineEntity(aida1, {name: 'periodos', record: 'periodo', pk: ['periodo'], access: catalogo})
-export const alumnos  = defineEntity(aida1, {name: 'alumnos', record: 'alumno' , pk: ['alumno' ], validators: ['emailRazonable'], access: personas})
+export const alumnos  = defineEntity(aida1, {name: 'alumnos', record: 'alumno' , pk: ['alumno' ], validators: ['emailRazonable'], access: personas, triggers: emailEnMinusculas})
 
 /* LEVEL 2: curso inherits the pks of level 1, so it cannot exist before them */
 

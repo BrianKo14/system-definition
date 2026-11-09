@@ -22,6 +22,12 @@ docentes:
   access:
     admin[5]: read,create,update,delete,lock
     docente[1]: read
+  triggers:
+    email_en_minusculas:
+      timing: before
+      events[2]: insert,update
+      level: row
+      routine: email_en_minusculas
 materias:
   name: materias
   record: materia
@@ -39,6 +45,7 @@ materias:
     admin[5]: read,create,update,delete,lock
     docente[1]: read
     alumno[1]: read
+  triggers:
 periodos:
   name: periodos
   record: periodo
@@ -54,6 +61,7 @@ periodos:
     admin[5]: read,create,update,delete,lock
     docente[1]: read
     alumno[1]: read
+  triggers:
 cursos:
   name: cursos
   record: curso
@@ -83,6 +91,7 @@ cursos:
     admin[5]: read,create,update,delete,lock
     docente[1]: read
     alumno[1]: read
+  triggers:
 clases:
   name: clases
   record: clase
@@ -138,6 +147,7 @@ clases:
     admin[5]: read,create,update,delete,lock
     docente[5]: read,create,update,delete,lock
     alumno[1]: read
+  triggers:
 alumnos:
   name: alumnos
   record: alumno
@@ -155,6 +165,12 @@ alumnos:
   access:
     admin[5]: read,create,update,delete,lock
     docente[1]: read
+  triggers:
+    email_en_minusculas:
+      timing: before
+      events[2]: insert,update
+      level: row
+      routine: email_en_minusculas
 evaluacion.preguntas:
   name: preguntas
   record: pregunta
@@ -225,6 +241,7 @@ evaluacion.preguntas:
     admin[5]: read,create,update,delete,lock
     docente[5]: read,create,update,delete,lock
     alumno[1]: read
+  triggers:
 evaluacion.opciones:
   name: opciones
   record: opcion
@@ -252,6 +269,7 @@ evaluacion.opciones:
     admin[5]: read,create,update,delete,lock
     docente[5]: read,create,update,delete,lock
     alumno[1]: read
+  triggers:
 inscripciones:
   name: inscripciones
   record: inscripcion
@@ -277,6 +295,7 @@ inscripciones:
   access:
     admin[5]: read,create,update,delete,lock
     docente[1]: read
+  triggers:
 presencias:
   name: presencias
   record: presencia
@@ -306,6 +325,7 @@ presencias:
   access:
     admin[5]: read,create,update,delete,lock
     docente[5]: read,create,update,delete,lock
+  triggers:
 mesas:
   name: mesas
   record: mesa
@@ -337,3 +357,4 @@ mesas:
   access:
     admin[5]: read,create,update,delete,lock
     docente[1]: read
+  triggers:

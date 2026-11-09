@@ -49,7 +49,8 @@ en el contexto, que nunca fue una descripción.
 
 * `src/common`: el framework descriptor. No conoce ningún sistema concreto. Está cortado en capas,
   cada una conoce a la anterior y no al revés: `ssot-types.ts` (los tipos de dominio y el contexto),
-  `ssot-record.ts` (campos y registros), `ssot-entity.ts` (pk, uks, fks, schema, table, access) y
+  `ssot-record.ts` (campos y registros), `ssot-routine.ts` (funciones, procedimientos y rutinas de
+  trigger), `ssot-entity.ts` (pk, uks, fks, schema, table, access, triggers) y
   `type-utils.ts` (helpers de TypeScript, ajenos al SSOT). `access.ts` (`Capability`, `AccessDef`) es
   independiente del resto y lo usa `ssot-entity.ts`. El `index.ts` reexporta todo.
   (Más adelante podrían aparecer `src/backend` y `src/frontend`, o aplanarse todo a `src` si no hacen falta.)
@@ -290,3 +291,20 @@ Nombres ya elegidos:
   calificar; se descartó por eso mismo: dos formas de escribir la misma entidad.) Por eso en aida
   `preguntas` y `opciones` entran por `inSchema('evaluacion', …)` y la fk a preguntas nombra
   `evaluacion.preguntas`.
+* **Rutinas y triggers.** `ssot-routine.ts` es una capa entre los tipos y las entidades: una rutina
+  conoce los tipos (sus params y su resultado se tipan con ellos) y las entidades conocen las
+  rutinas (un trigger nombra una). Tres clases discriminadas por `kind` — `function`, `procedure`,
+  `trigger` — y cada brazo rechaza lo que su clase no puede decir con `?: never`, el mismo truco de
+  `kind?: never` en los atributos: así un procedimiento con `returns` no compila sin un helper de
+  exactitud. El cuerpo es **texto** en su lenguaje (`sql` o `plpgsql`, cerrado), así la descripción
+  sigue siendo serializable. Las rutinas entran al contexto con `withRoutines`, una etapa antes de
+  los records, como `withValidators`, porque las nombran las entidades. Una rutina lleva su `name`
+  como una entidad, y `defineRoutines` exige que la key sea su identidad con la misma
+  `LocalNameOf` (que, con `NameInfoOf`, bajó a `ssot-types.ts` para que las dos capas la usen sin
+  importarse al revés); `inSchema` las califica a las dos, con el bound ensanchado a "cualquier
+  cosa con `schema?`". `triggers` en `EntityDef` nombra una rutina del contexto de clase `trigger`
+  (`TriggerRoutineNamesOf`); sin `level`, es por fila. Una rutina de trigger la pueden correr varios
+  triggers: en aida, `email_en_minusculas` corre en `docentes` y en `alumnos`. Las palabras de cada
+  conjunto (clases, lenguajes, momentos, eventos, niveles) se publican también como listas
+  `as const`, como `CAPABILITIES`, porque un implementador las escribe en SQL tal cual y tiene que
+  poder chequearlas en runtime.

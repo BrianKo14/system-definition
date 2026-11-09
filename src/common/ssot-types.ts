@@ -159,3 +159,15 @@ export const commonTypeDefs = {
     integer    : {tsType: boxType<number>()},
     boolean    : {tsType: boxType<boolean>()},
 } satisfies TypeCollection;
+
+
+/* The identity of a described thing that lives in a database namespace (an entity, a routine):
+   its local name, qualified by its schema when it has one */
+
+/** The type of a completed name. Nullifying undefined, to be derived. */
+export type NameInfoOf<TName extends string | undefined> = TName extends string ? TName : null
+
+/** The check to ensure a local name is derived from a fully-qualified name.
+ * E.g. "ventas.usuarios" -> "usuarios" */
+export type LocalNameOf<E extends string, TSchema> =
+    TSchema extends string ? (E extends `${TSchema}.${infer TLocal}` ? TLocal : never) : E
